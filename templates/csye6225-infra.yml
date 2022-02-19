@@ -65,7 +65,7 @@ Resources:
       CidrBlock: !Ref Subnet3CIDR
       Tags:
         - Key: Environment
-          Value: !Sub ${EnvironmentName} Public Subnet (AZ2)
+          Value: !Sub ${EnvironmentName} Public Subnet (AZ3)
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
