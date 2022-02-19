@@ -1,0 +1,16 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'VPC setup testing'
+Parameters:
+  VpcCIDR:
+    Description: This CIDR notation is used to create the VPC.
+    Type: String
+    Default: 10.192.0.0/16
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCIDR
+Outputs:
+  VPC:
+    Description: A reference to the created VPC.
+    Value: !Ref VPC

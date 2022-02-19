@@ -1,0 +1,118 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'VPC setup for CSYE6225 Assignment-03'
+Parameters:
+  EnvironmentName:
+    Description: This variable is used to set the Tag for every resource created by this Template.
+    Type: String
+  VpcCIDR:
+    Description: This CIDR notation is used to create the VPC.
+    Type: String
+    Default: 10.192.0.0/16
+  Subnet1CIDR:
+    Description: This CIDR notation is used to create the Subnet1 under the VPC defined above in Availability Zone1.
+    Type: String
+    Default: 10.192.10.0/24
+  Subnet2CIDR:
+    Description: This CIDR notation is used to create the Subnet2 under the VPC defined above in Availability Zone2.
+    Type: String
+    Default: 10.192.11.0/24
+  Subnet3CIDR:
+    Description: This CIDR notation is used to create the Subnet3 under the VPC defined above in Availability Zone3.
+    Type: String
+    Default: 10.192.12.0/24  
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCIDR
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+  Subnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: !Ref Subnet1CIDR
+      Tags:
+        - Key: Environment
+          Value: !Sub ${EnvironmentName} Public Subnet (AZ1)
+  Subnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 1, !GetAZs  '' ]
+      CidrBlock: !Ref Subnet2CIDR
+      Tags:
+        - Key: Environment
+          Value: !Sub ${EnvironmentName} Public Subnet (AZ2)
+  Subnet3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 2, !GetAZs  '' ]
+      CidrBlock: !Ref Subnet3CIDR
+      Tags:
+        - Key: Environment
+          Value: !Sub ${EnvironmentName} Public Subnet (AZ2)
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Environment
+          Value: !Sub ${EnvironmentName} Public Routes
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+  Subnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref Subnet1
+  Subnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref Subnet2
+  Subnet3RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref Subnet3  
+Outputs:
+  VPC:
+    Description: A reference to the created VPC.
+    Value: !Ref VPC
+  Subnets:
+    Description: A list of the Subnets created
+    Value: !Join [ ",", [ !Ref Subnet1, !Ref Subnet2, !Ref Subnet3 ]]
+  Subnet1:
+    Description: Reference to the 1st Subnet in Availability Zone 1.
+    Value: !Ref Subnet1
+  Subnet2:
+    Description: Reference to the 2nd Subnet in Availability Zone 2.
+    Value: !Ref Subnet2
+  Subnet3:
+    Description: Reference to the 3rd Subnet in Availability Zone 3.
+    Value: !Ref Subnet3
+  InternetGateway:
+    Description: Reference to the Internet Gateway created in Vpc.
+    Value: !Ref InternetGateway
+  
+  
