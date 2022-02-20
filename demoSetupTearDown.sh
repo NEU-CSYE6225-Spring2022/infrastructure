@@ -1,3 +1,3 @@
 #!/bin/bash -ex
 
-aws cloudformation delete-stack --stack-name demo --profile demo
+aws cloudformation delete-stack --stack-name demoVpc --profile demo
