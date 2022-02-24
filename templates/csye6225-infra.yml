@@ -28,12 +28,16 @@ Resources:
       Tags:
         - Key: Environment
           Value: !Ref EnvironmentName
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Vpc
   InternetGateway:
     Type: AWS::EC2::InternetGateway
     Properties:
       Tags:
         - Key: Environment
           Value: !Ref EnvironmentName
+        - Key: Name
+          Value: !Sub ${EnvironmentName} IG
   InternetGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
     Properties:
@@ -48,6 +52,8 @@ Resources:
       Tags:
         - Key: Environment
           Value: !Sub ${EnvironmentName} Public Subnet (AZ1)
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Sb1
   Subnet2:
     Type: AWS::EC2::Subnet
     Properties:
@@ -57,6 +63,8 @@ Resources:
       Tags:
         - Key: Environment
           Value: !Sub ${EnvironmentName} Public Subnet (AZ2)
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Sb2
   Subnet3:
     Type: AWS::EC2::Subnet
     Properties:
@@ -66,6 +74,8 @@ Resources:
       Tags:
         - Key: Environment
           Value: !Sub ${EnvironmentName} Public Subnet (AZ3)
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Sb3
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
@@ -73,6 +83,8 @@ Resources:
       Tags:
         - Key: Environment
           Value: !Sub ${EnvironmentName} Public Routes
+        - Key: Name
+          Value: !Sub ${EnvironmentName} RouteTable
   PublicRoute:
     Type: AWS::EC2::Route
     DependsOn: InternetGatewayAttachment
