@@ -19,7 +19,14 @@ Parameters:
   Subnet3CIDR:
     Description: This CIDR notation is used to create the Subnet3 under the VPC defined above in Availability Zone3.
     Type: String
-    Default: 10.192.12.0/24  
+    Default: 10.192.12.0/24
+  AmiId:
+    Description: This is the base AMI that we use to Instantiate the VM. This has SpringBoot and Mysql Inbuilt.
+    Type: String
+  ApplicationInstanceType:
+    Description: This EC2 Instance type is used to start our VM.  
+    Type: String
+    Default: t2.micro
 Resources:
   VPC:
     Type: AWS::EC2::VPC
@@ -28,16 +35,12 @@ Resources:
       Tags:
         - Key: Environment
           Value: !Ref EnvironmentName
-        - Key: Name
-          Value: !Sub ${EnvironmentName} Vpc
   InternetGateway:
     Type: AWS::EC2::InternetGateway
     Properties:
       Tags:
         - Key: Environment
           Value: !Ref EnvironmentName
-        - Key: Name
-          Value: !Sub ${EnvironmentName} IG
   InternetGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
     Properties:
@@ -52,8 +55,6 @@ Resources:
       Tags:
         - Key: Environment
           Value: !Sub ${EnvironmentName} Public Subnet (AZ1)
-        - Key: Name
-          Value: !Sub ${EnvironmentName} Sb1
   Subnet2:
     Type: AWS::EC2::Subnet
     Properties:
@@ -63,8 +64,6 @@ Resources:
       Tags:
         - Key: Environment
           Value: !Sub ${EnvironmentName} Public Subnet (AZ2)
-        - Key: Name
-          Value: !Sub ${EnvironmentName} Sb2
   Subnet3:
     Type: AWS::EC2::Subnet
     Properties:
@@ -74,8 +73,6 @@ Resources:
       Tags:
         - Key: Environment
           Value: !Sub ${EnvironmentName} Public Subnet (AZ3)
-        - Key: Name
-          Value: !Sub ${EnvironmentName} Sb3
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
@@ -83,8 +80,6 @@ Resources:
       Tags:
         - Key: Environment
           Value: !Sub ${EnvironmentName} Public Routes
-        - Key: Name
-          Value: !Sub ${EnvironmentName} RouteTable
   PublicRoute:
     Type: AWS::EC2::Route
     DependsOn: InternetGatewayAttachment
@@ -106,7 +101,61 @@ Resources:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       RouteTableId: !Ref PublicRouteTable
-      SubnetId: !Ref Subnet3  
+      SubnetId: !Ref Subnet3
+  ApplicationSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enabling the application accessible to public
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: '0.0.0.0/0'
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: '0.0.0.0/0'
+      - IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: '0.0.0.0/0'
+      - IpProtocol: tcp
+        FromPort: 8080
+        ToPort: 8080
+        CidrIp: '0.0.0.0/0'
+  ApplicationEc2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref ApplicationInstanceType
+      NetworkInterfaces:
+      - AssociatePublicIpAddress: true
+        DeleteOnTermination: true
+        SubnetId: !Ref Subnet1
+        DeviceIndex: 0
+        GroupSet:
+        - !Ref ApplicationSecurityGroup
+      KeyName: myKey
+      ImageId: !Ref AmiId   
+      Tags:
+      - Key: Name
+        Value: 'Application Server'
+    DependsOn: PublicRoute
+  ApplicationVolume:
+    Type: AWS::EC2::Volume
+    Properties:
+      Size: 20
+      AvailabilityZone: !GetAtt ApplicationEc2Instance.AvailabilityZone
+      VolumeType: gp2
+      Tags:
+      - Key: Name
+        Value: AppVolume
+  MountPoint:
+    Type: AWS::EC2::VolumeAttachment
+    Properties:
+      InstanceId: !Ref ApplicationEc2Instance
+      VolumeId: !Ref ApplicationVolume
+      Device: /dev/sdh
 Outputs:
   VPC:
     Description: A reference to the created VPC.
@@ -126,5 +175,6 @@ Outputs:
   InternetGateway:
     Description: Reference to the Internet Gateway created in Vpc.
     Value: !Ref InternetGateway
-  
-  
+  ServerPublicIp:
+    Description: 'Public IP address for the EC2 instance'
+    Value: !GetAtt ApplicationEc2Instance.PublicIp
