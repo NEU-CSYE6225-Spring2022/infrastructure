@@ -136,26 +136,17 @@ Resources:
         GroupSet:
         - !Ref ApplicationSecurityGroup
       KeyName: myKey
-      ImageId: !Ref AmiId   
+      ImageId: !Ref AmiId
+      BlockDeviceMappings:
+        - DeviceName: "/dev/xvda"
+          Ebs:
+            VolumeType: "gp2"
+            DeleteOnTermination: "true"
+            VolumeSize: "20"
       Tags:
       - Key: Name
         Value: 'Application Server'
     DependsOn: PublicRoute
-  ApplicationVolume:
-    Type: AWS::EC2::Volume
-    Properties:
-      Size: 20
-      AvailabilityZone: !GetAtt ApplicationEc2Instance.AvailabilityZone
-      VolumeType: gp2
-      Tags:
-      - Key: Name
-        Value: AppVolume
-  MountPoint:
-    Type: AWS::EC2::VolumeAttachment
-    Properties:
-      InstanceId: !Ref ApplicationEc2Instance
-      VolumeId: !Ref ApplicationVolume
-      Device: /dev/sdh
 Outputs:
   VPC:
     Description: A reference to the created VPC.
