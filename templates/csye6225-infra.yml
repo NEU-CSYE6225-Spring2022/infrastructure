@@ -20,6 +20,18 @@ Parameters:
     Description: This CIDR notation is used to create the Subnet3 under the VPC defined above in Availability Zone3.
     Type: String
     Default: 10.192.12.0/24
+  PrivateSubnet1CIDR:
+    Description: This CIDR notation is used to create the Private Subnet1 under the VPC defined above in Availability Zone1.
+    Type: String
+    Default: 10.192.13.0/24
+  PrivateSubnet2CIDR:
+    Description: This CIDR notation is used to create the Private Subnet2 under the VPC defined above in Availability Zone2.
+    Type: String
+    Default: 10.192.14.0/24
+  PrivateSubnet3CIDR:
+    Description: This CIDR notation is used to create the Private Subnet3 under the VPC defined above in Availability Zone3.
+    Type: String
+    Default: 10.192.15.0/24
   AmiId:
     Description: This is the base AMI that we use to Instantiate the VM. This has SpringBoot and Mysql Inbuilt.
     Type: String
@@ -27,6 +39,12 @@ Parameters:
     Description: This EC2 Instance type is used to start our VM.  
     Type: String
     Default: t2.micro
+  DbUser:
+    Description: This is the username for the Database.
+    Type: String
+  DbPassword:
+    Description: This is the password for the Database.
+    Type: String
 Resources:
   VPC:
     Type: AWS::EC2::VPC
@@ -73,6 +91,62 @@ Resources:
       Tags:
         - Key: Environment
           Value: !Sub ${EnvironmentName} Public Subnet (AZ3)
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: !Ref PrivateSubnet1CIDR
+      Tags:
+        - Key: Environment
+          Value: !Sub ${EnvironmentName} Private Subnet (AZ1)
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 1, !GetAZs  '' ]
+      CidrBlock: !Ref PrivateSubnet2CIDR
+      Tags:
+        - Key: Environment
+          Value: !Sub ${EnvironmentName} Private Subnet (AZ2)
+  PrivateSubnet3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 2, !GetAZs  '' ]
+      CidrBlock: !Ref PrivateSubnet3CIDR
+      Tags:
+        - Key: Environment
+          Value: !Sub ${EnvironmentName} Private Subnet (AZ3)
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Environment
+          Value: !Sub ${EnvironmentName} Private Routes
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnet1
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnet2
+  PrivateSubnet3RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnet3
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 10.0.0.0/16
+      GatewayId: Local
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
@@ -124,6 +198,16 @@ Resources:
         FromPort: 8080
         ToPort: 8080
         CidrIp: '0.0.0.0/0'
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enabling the Database accessible to only the Application Instance.
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 3306
+        ToPort: 3306
+        SourceSecurityGroupId: !Ref ApplicationSecurityGroup
   ApplicationEc2Instance:
     Type: AWS::EC2::Instance
     Properties:
@@ -143,10 +227,96 @@ Resources:
             VolumeType: "gp2"
             DeleteOnTermination: "true"
             VolumeSize: "20"
+      UserData:               # Need to add proper commands
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          sudo yum update -y
+          export bucketName='${EnvironmentName}.manojreddya.me'
+          export databasehost=${RDSInstance.Endpoint.Address}
+          export databaseuser=${DbUser}
+          export databasepassword=${DbPassword}
+          sudo systemctl reload application.service
       Tags:
       - Key: Name
         Value: 'Application Server'
     DependsOn: PublicRoute
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${EnvironmentName}.manojreddya.me'  #Need to find a random String function
+      AccessControl: Private
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: 'aws:kms'
+              KMSMasterKeyID: KMS-KEY-ARN
+      LifecycleConfiguration:
+        Rules:
+          - Id: StorageRules
+            Prefix: standardIA
+            Status: Enabled
+            Transitions:
+              - TransitionInDays: 30
+                StorageClass: STANDARD_IA
+  RDSParameterGroup:
+    Type: 'AWS::RDS::DBParameterGroup'
+    Properties:
+      Description: MySQL Parameter Group
+      Family: mysql8.0
+      Parameters:
+        sql_mode: IGNORE_SPACE
+        max_allowed_packet: 1024
+  RDSInstance:
+    Type: 'AWS::RDS::DBInstance'
+    Properties:
+      DBInstanceIdentifier: csye6225
+      DBName: csye6225
+      DBInstanceClass: db.t3.micro
+      Engine: MySQL
+      EngineVersion: 8.0.16
+      MasterUsername: !Sub ${DbUser}
+      MasterUserPassword: !Sub ${DbPassword}
+      DBParameterGroupName: !Ref RDSParameterGroup
+      DBSecurityGroups: 
+        - !Ref DatabaseSecurityGroup
+      DBSubnetGroupName: !Ref PrivateSubnet1
+      MultiAZ: false
+      PubliclyAccessible: false
+      IamInstanceProfile: !Ref IAMInstanceProfile
+    DependsOn: InternetGatewayAttachment
+  EC2CSYE6225IamRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: This IAM Role is attached to the Application Servers EC2 machine
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - 'ec2.amazonaws.com'
+          Action:
+          - 'sts:AssumeRole'
+      Policies:
+      - PolicyName: WebAppS3
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - 's3:PutObject'
+                - 's3:GetObject'
+                - 's3:DeleteObject'
+              Resource: !Sub 'arn:aws:s3:::{Ref: S3Bucket.BucketName}/*'  # Need to check if this actually working
+      Tags: 
+      - Key: Name
+        Value: 'Ec2IamS3Role'
+  IAMInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+      - !Ref EC2CSYE6225IamRole
+  
 Outputs:
   VPC:
     Description: A reference to the created VPC.
