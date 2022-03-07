@@ -118,35 +118,6 @@ Resources:
       Tags:
         - Key: Environment
           Value: !Sub ${EnvironmentName} Private Subnet (AZ3)
-  PrivateRouteTable:
-    Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId: !Ref VPC
-      Tags:
-        - Key: Environment
-          Value: !Sub ${EnvironmentName} Private Routes
-  PrivateSubnet1RouteTableAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      RouteTableId: !Ref PrivateRouteTable
-      SubnetId: !Ref PrivateSubnet1
-  PrivateSubnet2RouteTableAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      RouteTableId: !Ref PrivateRouteTable
-      SubnetId: !Ref PrivateSubnet2
-  PrivateSubnet3RouteTableAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      RouteTableId: !Ref PrivateRouteTable
-      SubnetId: !Ref PrivateSubnet3
-  PrivateRoute:
-    Type: AWS::EC2::Route
-    DependsOn: InternetGatewayAttachment
-    Properties:
-      RouteTableId: !Ref PrivateRouteTable
-      DestinationCidrBlock: 10.0.0.0/16
-      GatewayId: Local
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
@@ -212,6 +183,7 @@ Resources:
     Type: AWS::EC2::Instance
     Properties:
       InstanceType: !Ref ApplicationInstanceType
+      IamInstanceProfile: !Ref IAMInstanceProfile
       NetworkInterfaces:
       - AssociatePublicIpAddress: true
         DeleteOnTermination: true
@@ -228,14 +200,19 @@ Resources:
             DeleteOnTermination: "true"
             VolumeSize: "20"
       UserData:               # Need to add proper commands
-        Fn::Base64: !Sub |
+        Fn::Base64: !Sub
+        -  | 
           #!/bin/bash
-          sudo yum update -y
+          cat > /etc/profile.d/spring_env.sh << 'EOF'
+
           export bucketName='${EnvironmentName}.manojreddya.me'
-          export databasehost=${RDSInstance.Endpoint.Address}
+          export databasehost=${databasehostname}
           export databaseuser=${DbUser}
           export databasepassword=${DbPassword}
-          sudo systemctl reload application.service
+          EOF
+          chmod 777 /etc/profile.d/spring_env.sh
+          sudo systemctl restart application_boot.service
+        - databasehostname: !GetAtt RDSInstance.Endpoint.Address
       Tags:
       - Key: Name
         Value: 'Application Server'
@@ -248,8 +225,7 @@ Resources:
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
-              SSEAlgorithm: 'aws:kms'
-              KMSMasterKeyID: KMS-KEY-ARN
+              SSEAlgorithm: AES256
       LifecycleConfiguration:
         Rules:
           - Id: StorageRules
@@ -265,25 +241,35 @@ Resources:
       Family: mysql8.0
       Parameters:
         sql_mode: IGNORE_SPACE
-        max_allowed_packet: 1024
   RDSInstance:
     Type: 'AWS::RDS::DBInstance'
     Properties:
       DBInstanceIdentifier: csye6225
       DBName: csye6225
       DBInstanceClass: db.t3.micro
+      DeleteAutomatedBackups: true
       Engine: MySQL
       EngineVersion: 8.0.16
-      MasterUsername: !Sub ${DbUser}
-      MasterUserPassword: !Sub ${DbPassword}
+      AllocatedStorage: '5'
+      MasterUsername: !Ref DbUser
+      MasterUserPassword: !Ref DbPassword
       DBParameterGroupName: !Ref RDSParameterGroup
-      DBSecurityGroups: 
-        - !Ref DatabaseSecurityGroup
-      DBSubnetGroupName: !Ref PrivateSubnet1
+      VPCSecurityGroups: 
+        - !Sub ${DatabaseSecurityGroup.GroupId}
+      DBSubnetGroupName: !Ref DBSubnetGroup
       MultiAZ: false
       PubliclyAccessible: false
-      IamInstanceProfile: !Ref IAMInstanceProfile
-    DependsOn: InternetGatewayAttachment
+    DependsOn: 
+    - PrivateSubnet1
+    - InternetGatewayAttachment
+    - PrivateSubnet2
+  DBSubnetGroup:
+    Type: 'AWS::RDS::DBSubnetGroup'
+    Properties:
+      DBSubnetGroupDescription: DB subnet group for RDS
+      SubnetIds:
+      - Ref: PrivateSubnet1
+      - Ref: PrivateSubnet2
   EC2CSYE6225IamRole:
     Type: AWS::IAM::Role
     Properties:
@@ -307,7 +293,7 @@ Resources:
                 - 's3:PutObject'
                 - 's3:GetObject'
                 - 's3:DeleteObject'
-              Resource: !Sub 'arn:aws:s3:::{Ref: S3Bucket.BucketName}/*'  # Need to check if this actually working
+              Resource: !Sub 'arn:aws:s3:::${EnvironmentName}.manojreddya.me/*'  # Need to check if this actually working
       Tags: 
       - Key: Name
         Value: 'Ec2IamS3Role'
