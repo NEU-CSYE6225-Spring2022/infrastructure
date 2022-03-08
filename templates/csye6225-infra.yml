@@ -293,7 +293,9 @@ Resources:
                 - 's3:PutObject'
                 - 's3:GetObject'
                 - 's3:DeleteObject'
-              Resource: !Sub 'arn:aws:s3:::${EnvironmentName}.manojreddya.me/*'  # Need to check if this actually working
+              Resource: 
+              - !Sub 'arn:aws:s3:::${EnvironmentName}.manojreddya.me/*'  # Need to check if this actually working
+              - !Sub 'arn:aws:s3:::${EnvironmentName}.manojreddya.me'
       Tags: 
       - Key: Name
         Value: 'Ec2IamS3Role'
