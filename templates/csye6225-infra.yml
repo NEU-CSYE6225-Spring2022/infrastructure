@@ -45,6 +45,9 @@ Parameters:
   DbPassword:
     Description: This is the password for the Database.
     Type: String
+  RandomString:
+    Description: This is a random string used for S3 bucket name
+    Type: String
 Resources:
   VPC:
     Type: AWS::EC2::VPC
@@ -205,7 +208,7 @@ Resources:
           #!/bin/bash
           cat > /etc/profile.d/spring_env.sh << 'EOF'
 
-          export bucketName='${EnvironmentName}.manojreddya.me'
+          export bucketName='${RandomString}.${EnvironmentName}.manojreddya.me'
           export databasehost=${databasehostname}
           export databaseuser=${DbUser}
           export databasepassword=${DbPassword}
@@ -220,7 +223,7 @@ Resources:
   S3Bucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub '${EnvironmentName}.manojreddya.me'  #Need to find a random String function
+      BucketName: !Sub '${RandomString}.${EnvironmentName}.manojreddya.me'  #Need to find a random String function
       AccessControl: Private
       BucketEncryption:
         ServerSideEncryptionConfiguration:
@@ -294,8 +297,8 @@ Resources:
                 - 's3:GetObject'
                 - 's3:DeleteObject'
               Resource: 
-              - !Sub 'arn:aws:s3:::${EnvironmentName}.manojreddya.me/*'  # Need to check if this actually working
-              - !Sub 'arn:aws:s3:::${EnvironmentName}.manojreddya.me'
+              - !Sub 'arn:aws:s3:::${RandomString}.${EnvironmentName}.manojreddya.me/*'  # Need to check if this actually working
+              - !Sub 'arn:aws:s3:::${RandomString}.${EnvironmentName}.manojreddya.me'
       Tags: 
       - Key: Name
         Value: 'Ec2IamS3Role'
