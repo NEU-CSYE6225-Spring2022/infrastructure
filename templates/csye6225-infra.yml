@@ -312,7 +312,7 @@ Resources:
         - !Ref Subnet1
         - !Ref Subnet2
         - !Ref Subnet3
-  AutoScalingGroupCPUPolicy:
+  AutoScalingGroupCPUPolicyScaleUp:
     Type: AWS::AutoScaling::ScalingPolicy
     Properties:
       AutoScalingGroupName: !Ref WebAppAutoScalingGroup
@@ -321,6 +321,16 @@ Resources:
         PredefinedMetricSpecification:
           PredefinedMetricType: ASGAverageCPUUtilization
         TargetValue: 5.0
+  AutoScalingGroupCPUPolicyScaleDown:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AutoScalingGroupName: !Ref WebAppAutoScalingGroup
+      PolicyType: TargetTrackingScaling
+      TargetTrackingConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ASGAverageCPUUtilization
+        DisableScaleIn: true
+        TargetValue: 3.0
   S3Bucket:
     Type: AWS::S3::Bucket
     Properties:
