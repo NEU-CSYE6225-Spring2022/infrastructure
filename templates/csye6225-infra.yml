@@ -289,14 +289,14 @@ Resources:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
       AutoScalingGroupName: !Sub ${AWS::StackName}-asg
-      Cooldown: '300'
+      Cooldown: '60'
       DesiredCapacity: '1'
       HealthCheckGracePeriod: 90
       HealthCheckType: EC2
       LaunchTemplate:
         LaunchTemplateId: !Ref AutoScalingGroupTemplate
         Version: !GetAtt AutoScalingGroupTemplate.LatestVersionNumber
-      MaxSize: '3'
+      MaxSize: '5'
       MinSize: '1'
       NewInstancesProtectedFromScaleIn: false
       Tags:
@@ -329,7 +329,6 @@ Resources:
       TargetTrackingConfiguration:
         PredefinedMetricSpecification:
           PredefinedMetricType: ASGAverageCPUUtilization
-        DisableScaleIn: true
         TargetValue: 3.0
   S3Bucket:
     Type: AWS::S3::Bucket
