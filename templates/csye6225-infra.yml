@@ -363,6 +363,11 @@ Resources:
     Properties:
       BucketName: !Sub '${RandomString}.${EnvironmentName}.manojreddya.me'  #Need to find a random String function
       AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
