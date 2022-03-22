@@ -217,6 +217,8 @@ Resources:
         - Key: Application
           Value: Public facing webapp
       Type: application
+    DependsOn: 
+    - InternetGateway
   PublicLoadBalancerTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
