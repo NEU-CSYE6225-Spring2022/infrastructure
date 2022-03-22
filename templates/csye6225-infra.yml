@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'VPC setup for CSYE6225 Assignment-03'
+Description: 'VPC setup for CSYE6225 Assignment-06'
 Parameters:
   EnvironmentName:
     Description: This variable is used to set the Tag for every resource created by this Template.
@@ -47,6 +47,9 @@ Parameters:
     Type: String
   RandomString:
     Description: This is a random string used for S3 bucket name
+    Type: String
+  HostedZoneDomainName:
+    Description: Domain name used for application reference to Public
     Type: String
 Resources:
   VPC:
@@ -153,25 +156,18 @@ Resources:
   ApplicationSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Enabling the application accessible to public
+      GroupDescription: Enabling the application accessible to only LoadBalancer
       VpcId: !Ref VPC
       SecurityGroupIngress:
       - IpProtocol: tcp
-        FromPort: 22
-        ToPort: 22
-        CidrIp: '0.0.0.0/0'
-      - IpProtocol: tcp
-        FromPort: 80
-        ToPort: 80
-        CidrIp: '0.0.0.0/0'
-      - IpProtocol: tcp
-        FromPort: 443
-        ToPort: 443
-        CidrIp: '0.0.0.0/0'
-      - IpProtocol: tcp
         FromPort: 8080
         ToPort: 8080
-        CidrIp: '0.0.0.0/0'
+        SourceSecurityGroupId: !GetAtt LoadBalancerSecurityGroup.GroupId
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        SourceSecurityGroupId: !GetAtt LoadBalancerSecurityGroup.GroupId
+    DependsOn: LoadBalancerSecurityGroup
   DatabaseSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -182,49 +178,196 @@ Resources:
         FromPort: 3306
         ToPort: 3306
         SourceSecurityGroupId: !Ref ApplicationSecurityGroup
-  ApplicationEc2Instance:
-    Type: AWS::EC2::Instance
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
     Properties:
-      InstanceType: !Ref ApplicationInstanceType
-      IamInstanceProfile: !Ref IAMInstanceProfile
-      NetworkInterfaces:
-      - AssociatePublicIpAddress: true
-        DeleteOnTermination: true
-        SubnetId: !Ref Subnet1
-        DeviceIndex: 0
-        GroupSet:
-        - !Ref ApplicationSecurityGroup
-      KeyName: myKey
-      ImageId: !Ref AmiId
-      BlockDeviceMappings:
-        - DeviceName: "/dev/xvda"
-          Ebs:
-            VolumeType: "gp2"
-            DeleteOnTermination: "true"
-            VolumeSize: "20"
-      UserData:               # Need to add proper commands
-        Fn::Base64: !Sub
-        -  | 
-          #!/bin/bash
-          cat > /etc/profile.d/spring_env.sh << 'EOF'
-
-          export bucketName='${RandomString}.${EnvironmentName}.manojreddya.me'
-          export databasehost=${databasehostname}
-          export databaseuser=${DbUser}
-          export databasepassword=${DbPassword}
-          EOF
-          chmod 777 /etc/profile.d/spring_env.sh
-          sudo systemctl restart application_boot.service
-        - databasehostname: !GetAtt RDSInstance.Endpoint.Address
+      GroupDescription: Enabling port 80 and 443 on the Load balancer to public.
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: '0.0.0.0/0'
+      - IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: '0.0.0.0/0'
+  Route53LoadBalancerMap:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      Name: !Ref HostedZoneDomainName
+      Type: A
+      HostedZoneName: !Ref HostedZoneDomainName
+      AliasTarget: 
+        DNSName: !GetAtt PublicLoadBalancer.DNSName
+        HostedZoneId: !GetAtt PublicLoadBalancer.CanonicalHostedZoneID
+  PublicLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      IpAddressType: ipv4
+      Name: !Sub ${AWS::StackName}-load-balancer
+      Scheme: internet-facing
+      SecurityGroups:
+        - !GetAtt LoadBalancerSecurityGroup.GroupId
+      Subnets:
+        - !Ref Subnet1
+        - !Ref Subnet2
+        - !Ref Subnet3
       Tags:
-      - Key: Name
-        Value: 'Application Server'
-    DependsOn: PublicRoute
+        - Key: Application
+          Value: Public facing webapp
+      Type: application
+  PublicLoadBalancerTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 90
+      HealthCheckPath: '/healthz'
+      HealthCheckPort: '8080'
+      HealthCheckProtocol: 'HTTP'
+      HealthCheckTimeoutSeconds: 60
+      HealthyThresholdCount: 2
+      IpAddressType: ipv4
+      Name: !Sub ${AWS::StackName}-lb-tg
+      Port: 8080
+      Protocol: 'HTTP'
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-lb-tg
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: '20'
+      TargetType: instance
+      UnhealthyThresholdCount: 2
+      VpcId: !Ref VPC
+  PublicLoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref PublicLoadBalancerTargetGroup
+      LoadBalancerArn: !Ref PublicLoadBalancer
+      Port: 80
+      Protocol: HTTP
+  AutoScalingGroupTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub '${AWS::StackName}-launch-template'
+      LaunchTemplateData:
+        BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 20
+            VolumeType: "gp3"
+            DeleteOnTermination: true
+        ImageId: !Ref AmiId
+        IamInstanceProfile:
+          Name: !Ref IAMInstanceProfile
+        InstanceType: !Ref ApplicationInstanceType
+        NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeleteOnTermination: true
+          DeviceIndex: 0
+          Groups:
+          - !Ref ApplicationSecurityGroup
+        KeyName: myKey
+        UserData:
+          Fn::Base64: !Sub
+          -  | 
+            #!/bin/bash
+            cat > /etc/profile.d/spring_env.sh << 'EOF'
+            export bucketName='${RandomString}.${EnvironmentName}.manojreddya.me'
+            export databasehost=${databasehostname}
+            export databaseuser=${DbUser}
+            export databasepassword=${DbPassword}
+            EOF
+            chmod 777 /etc/profile.d/spring_env.sh
+            sudo systemctl restart application_boot.service
+          - databasehostname: !GetAtt RDSInstance.Endpoint.Address
+    DependsOn: 
+    - RDSInstance
+  WebAppAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: !Sub ${AWS::StackName}-asg
+      Cooldown: '60'
+      DesiredCapacity: '1'
+      HealthCheckGracePeriod: 90
+      HealthCheckType: EC2
+      LaunchTemplate:
+        LaunchTemplateId: !Ref AutoScalingGroupTemplate
+        Version: !GetAtt AutoScalingGroupTemplate.LatestVersionNumber
+      MaxSize: '5'
+      MinSize: '1'
+      NewInstancesProtectedFromScaleIn: false
+      Tags:
+        - Key: Application
+          Value: WebApp
+          PropagateAtLaunch: "true"
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-asg
+          PropagateAtLaunch: "true"
+      TargetGroupARNs:
+        - !Ref PublicLoadBalancerTargetGroup
+      VPCZoneIdentifier:
+        - !Ref Subnet1
+        - !Ref Subnet2
+        - !Ref Subnet3
+  AutoScalingGroupCPUPolicyScaleUp:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AutoScalingGroupName: !Ref WebAppAutoScalingGroup
+      AdjustmentType: ChangeInCapacity
+      Cooldown: 60
+      ScalingAdjustment: 1
+  AutoScalingGroupCPUPolicyScaleDown:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AutoScalingGroupName: !Ref WebAppAutoScalingGroup
+      AdjustmentType: ChangeInCapacity
+      Cooldown: 60
+      ScalingAdjustment: -1
+  CloudWatchAlarmScaleDown:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmActions:
+      - !Ref AutoScalingGroupCPUPolicyScaleDown
+      AlarmDescription: 'Cloudwatch alarm for scaling down when CPU is < than 3% for 2 minutes'
+      ComparisonOperator: LessThanThreshold
+      Dimensions:
+      - Name: AutoScalingGroupName
+        Value: !Ref WebAppAutoScalingGroup
+      EvaluationPeriods: 2
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      Period: 60
+      Statistic: Average
+      Threshold: 3
+  CloudWatchAlarmScaleUp:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmActions:
+      - !Ref AutoScalingGroupCPUPolicyScaleUp
+      AlarmDescription: 'Cloudwatch alarm for scaling down when CPU is > than 5% for 2 minutes'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+      - Name: AutoScalingGroupName
+        Value: !Ref WebAppAutoScalingGroup
+      EvaluationPeriods: 2
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      Period: 60
+      Statistic: Average
+      Threshold: 5
   S3Bucket:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub '${RandomString}.${EnvironmentName}.manojreddya.me'  #Need to find a random String function
       AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
@@ -306,8 +449,7 @@ Resources:
     Type: AWS::IAM::InstanceProfile
     Properties:
       Roles:
-      - !Ref EC2CSYE6225IamRole
-  
+      - !Ref EC2CSYE6225IamRole  
 Outputs:
   VPC:
     Description: A reference to the created VPC.
@@ -327,6 +469,3 @@ Outputs:
   InternetGateway:
     Description: Reference to the Internet Gateway created in Vpc.
     Value: !Ref InternetGateway
-  ServerPublicIp:
-    Description: 'Public IP address for the EC2 instance'
-    Value: !GetAtt ApplicationEc2Instance.PublicIp
