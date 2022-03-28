@@ -51,6 +51,9 @@ Parameters:
   HostedZoneDomainName:
     Description: Domain name used for application reference to Public
     Type: String
+  CodeDeployBucketName:
+    Description: S3 Bucket used for pulling the Artifact.
+    Type: String
 Resources:
   VPC:
     Type: AWS::EC2::VPC
@@ -442,8 +445,18 @@ Resources:
                 - 's3:GetObject'
                 - 's3:DeleteObject'
               Resource: 
-              - !Sub 'arn:aws:s3:::${RandomString}.${EnvironmentName}.manojreddya.me/*'  # Need to check if this actually working
+              - !Sub 'arn:aws:s3:::${RandomString}.${EnvironmentName}.manojreddya.me/*'
               - !Sub 'arn:aws:s3:::${RandomString}.${EnvironmentName}.manojreddya.me'
+      - PolicyName: CodeDeployS3
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - 's3:GetObject'
+              Resource: 
+              - !Sub 'arn:aws:s3:::${CodeDeployBucketName}/*'
+              - !Sub 'arn:aws:s3:::${CodeDeployBucketName}'
       Tags: 
       - Key: Name
         Value: 'Ec2IamS3Role'
@@ -451,7 +464,53 @@ Resources:
     Type: AWS::IAM::InstanceProfile
     Properties:
       Roles:
-      - !Ref EC2CSYE6225IamRole  
+      - !Ref EC2CSYE6225IamRole
+  WebAppCodeDeployApplication:
+    Type: AWS::CodeDeploy::Application
+    Properties: 
+      ApplicationName: WebApp
+      ComputePlatform: Server
+      Tags: 
+        - Key: Environment
+          Value: !Ref EnvironmentName
+  WebappDeploymentGroup:
+    Type: "AWS::CodeDeploy::DeploymentGroup"
+    Properties:
+      ApplicationName: !Ref WebappApplication
+      ServiceRoleArn: !GetAtt CodeDeployServiceRole.Arn
+      DeploymentConfigName: CodeDeployDefault.AllAtOnce
+      DeploymentGroupName: WebApplicationDeploymentGroup
+      AutoScalingGroups:
+      - Ref: WebAppAutoScalingGroup
+    DependsOn:
+    - WebAppAutoScalingGroup
+    - CodeDeployServiceRole
+    - WebappApplication
+  CodeDeployServiceRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Principal:
+              Service:
+                - "codedeploy.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Policies:
+        -
+          PolicyName: allow-autoscaling
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              -
+                Effect: Allow
+                Action:
+                  - ec2:*
+                  - autoscaling:*
+                Resource: "*"
 Outputs:
   VPC:
     Description: A reference to the created VPC.
