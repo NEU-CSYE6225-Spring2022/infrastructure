@@ -468,7 +468,7 @@ Resources:
   WebAppCodeDeployApplication:
     Type: AWS::CodeDeploy::Application
     Properties: 
-      ApplicationName: WebApp
+      ApplicationName: webapp
       ComputePlatform: Server
       Tags: 
         - Key: Environment
@@ -476,16 +476,16 @@ Resources:
   WebappDeploymentGroup:
     Type: "AWS::CodeDeploy::DeploymentGroup"
     Properties:
-      ApplicationName: !Ref WebappApplication
+      ApplicationName: !Ref WebAppCodeDeployApplication
       ServiceRoleArn: !GetAtt CodeDeployServiceRole.Arn
       DeploymentConfigName: CodeDeployDefault.AllAtOnce
-      DeploymentGroupName: WebApplicationDeploymentGroup
+      DeploymentGroupName: webapp
       AutoScalingGroups:
       - Ref: WebAppAutoScalingGroup
     DependsOn:
     - WebAppAutoScalingGroup
     - CodeDeployServiceRole
-    - WebappApplication
+    - WebAppCodeDeployApplication
   CodeDeployServiceRole:
     Type: "AWS::IAM::Role"
     Properties:
