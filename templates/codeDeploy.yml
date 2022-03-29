@@ -1,0 +1,21 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CodeDeploy setup for CSYE6225 Assignment-07'
+Parameters:
+  BucketName:
+    Description: This variable is used to set the Bucket for CodeDeploy.
+    Type: String
+  EnvironmentName:
+    Description: This variable is used to set the Tag for every resource created by this Template.
+    Type: String
+Resources:
+  WebAppCodeDeploy:
+    Type: AWS::CodeDeploy::Application
+    Properties: 
+      ApplicationName: WebApp
+      ComputePlatform: Server
+      Tags: 
+        - Key: Environment
+          Value: !Ref EnvironmentName
+  
+
+Outputs:
