@@ -492,21 +492,18 @@ Resources:
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
-          -
-            Effect: "Allow"
+          - Effect: "Allow"
             Principal:
               Service:
                 - "codedeploy.amazonaws.com"
             Action:
               - "sts:AssumeRole"
       Policies:
-        -
-          PolicyName: allow-autoscaling
+        - PolicyName: allow-autoscaling
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
-              -
-                Effect: Allow
+              - Effect: Allow
                 Action:
                   - ec2:*
                   - autoscaling:*
