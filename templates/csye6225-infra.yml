@@ -222,6 +222,10 @@ Resources:
       Type: application
     DependsOn: 
     - InternetGateway
+    - Subnet1
+    - Subnet2
+    - Subnet3
+    - LoadBalancerSecurityGroup
   PublicLoadBalancerTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
