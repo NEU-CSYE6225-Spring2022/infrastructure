@@ -461,6 +461,8 @@ Resources:
               Resource: 
               - !Sub 'arn:aws:s3:::${CodeDeployBucketName}/*'
               - !Sub 'arn:aws:s3:::${CodeDeployBucketName}'
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
       Tags: 
       - Key: Name
         Value: 'Ec2IamS3Role'
@@ -512,6 +514,20 @@ Resources:
                   - ec2:*
                   - autoscaling:*
                 Resource: "*"
+  WebAppCloudWatchLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties: 
+      LogGroupName: csye6225-spring-boot
+      RetentionInDays: 2
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+  WebAppCloudWatchLogStream:
+    Type: AWS::Logs::LogStream
+    Properties: 
+      LogGroupName: csye6225-spring-boot
+      LogStreamName: webapp
+
 Outputs:
   VPC:
     Description: A reference to the created VPC.
