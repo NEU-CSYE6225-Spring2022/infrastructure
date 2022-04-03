@@ -518,7 +518,7 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties: 
       LogGroupName: csye6225-spring-boot
-      RetentionInDays: 2
+      RetentionInDays: 1
       Tags:
         - Key: Environment
           Value: !Ref EnvironmentName
@@ -527,6 +527,8 @@ Resources:
     Properties: 
       LogGroupName: csye6225-spring-boot
       LogStreamName: webapp
+    DependsOn:
+    - WebAppCloudWatchLogGroup
 
 Outputs:
   VPC:
