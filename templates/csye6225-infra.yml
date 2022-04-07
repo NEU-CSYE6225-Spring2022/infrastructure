@@ -54,6 +54,9 @@ Parameters:
   CodeDeployBucketName:
     Description: S3 Bucket used for pulling the Artifact.
     Type: String
+  AccountId:
+    Description: Account Id for the specific Organization.
+    Type: String
 Resources:
   VPC:
     Type: AWS::EC2::VPC
@@ -563,13 +566,13 @@ Resources:
             Action: 
               - 'codedeploy:GetDeploymentConfig'
             Resource:
-              - 'arn:aws:codedeploy:us-east-1:974908798416:deploymentconfig:CodeDeployDefault.AllAtOnce'
+              - !Sub 'arn:aws:codedeploy:us-east-1:${AccountId}:deploymentconfig:CodeDeployDefault.AllAtOnce'
           - Effect: Allow
             Action:
               - 'codedeploy:GetApplicationRevision'
               - 'codedeploy:RegisterApplicationRevision'
             Resource: 
-              - 'arn:aws:codedeploy:us-east-1:974908798416:application:webapp'
+              - !Sub 'arn:aws:codedeploy:us-east-1:${AccountId}:application:webapp'
       ManagedPolicyName: githubActionsCodeDeployAPI
       Users: 
         - githubActionsCiCd
