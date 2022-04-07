@@ -542,8 +542,8 @@ Resources:
               - 's3:PutObject'
               - 's3:ListBucket'
             Resource: 
-              - 'arn:aws:s3:::codedeploy.dev.manojreddya.me/*'
-              - 'arn:aws:s3:::codedeploy.dev.manojreddya.me'
+              - !Sub 'arn:aws:s3:::${CodeDeployBucketName}/*'
+              - !Sub 'arn:aws:s3:::${CodeDeployBucketName}'
       ManagedPolicyName: githubActionsArtifactUpload
       Users: 
         - githubActionsCiCd
