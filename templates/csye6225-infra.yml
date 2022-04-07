@@ -530,7 +530,49 @@ Resources:
       LogStreamName: webapp
     DependsOn:
     - WebAppCloudWatchLogGroup
-
+  GithubActionsS3Copy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties: 
+      Description: 'Managed policy to Upload Artifact to S3'
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - 's3:PutObject'
+              - 's3:ListBucket'
+            Resource: 
+              - 'arn:aws:s3:::codedeploy.dev.manojreddya.me/*'
+              - 'arn:aws:s3:::codedeploy.dev.manojreddya.me'
+      ManagedPolicyName: githubActionsArtifactUpload
+      Users: 
+        - githubActionsCiCd
+  GithubActionsCodeDeploy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties: 
+      Description: 'Managed policy to call Codedeploy API'
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'codedeploy:CreateDeployment'
+              - 'codedeploy:GetDeployment'
+            Resource: '*'
+          - Effect: Allow
+            Action: 
+              - 'codedeploy:GetDeploymentConfig'
+            Resource:
+              - 'arn:aws:codedeploy:us-east-1:974908798416:deploymentconfig:CodeDeployDefault.AllAtOnce'
+          - Effect: Allow
+            Action:
+              - 'codedeploy:GetApplicationRevision'
+              - 'codedeploy:RegisterApplicationRevision'
+            Resource: 
+              - 'arn:aws:codedeploy:us-east-1:974908798416:application:webapp'
+      ManagedPolicyName: githubActionsCodeDeployAPI
+      Users: 
+        - githubActionsCiCd
 Outputs:
   VPC:
     Description: A reference to the created VPC.
