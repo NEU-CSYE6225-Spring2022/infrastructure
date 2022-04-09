@@ -464,9 +464,19 @@ Resources:
               Resource: 
               - !Sub 'arn:aws:s3:::${CodeDeployBucketName}/*'
               - !Sub 'arn:aws:s3:::${CodeDeployBucketName}'
+      - PolicyName: SNSTopicPublish
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - 'sns:Publish'
+              Resource:
+              - !Ref SNSTopic
       ManagedPolicyArns:
       - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
       - arn:aws:iam::aws:policy/CloudWatchAgentAdminPolicy
+      - arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
       Tags: 
       - Key: Name
         Value: 'Ec2IamS3Role'
@@ -533,6 +543,23 @@ Resources:
       LogStreamName: webapp
     DependsOn:
     - WebAppCloudWatchLogGroup
+  GithubActionsLambdaS3Copy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: 'Managed policy for Github CICD user to push lambda code to S3'
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - 's3:PutObject'
+              - 's3:ListBucket'
+            Resource:
+              - !Sub 'arn:aws:s3:::${EnvironmentName}.lambda.verifyuser'
+              - !Sub 'arn:aws:s3:::${EnvironmentName}.lambda.verifyuser/*'
+      ManagedPolicyName: githubActionsLambdaS3Upload
+      Users:
+        - githubActionsCiCd
   GithubActionsS3Copy:
     Type: AWS::IAM::ManagedPolicy
     Properties: 
@@ -576,6 +603,108 @@ Resources:
       ManagedPolicyName: githubActionsCodeDeployAPI
       Users: 
         - githubActionsCiCd
+  SNSTopic:
+    Type: AWS::SNS::Topic
+    Properties: 
+      DisplayName: snsTopic
+      FifoTopic: false
+      Subscription: 
+        - Endpoint: !Ref LambdaServerless
+          Protocol: lambda
+      Tags: 
+        - Key: Environment
+          Value: !Ref EnvironmentName
+      TopicName: snsTopic
+    DependsOn: 
+    - LambdaServerless
+  LambdaServerless:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code: 
+        S3Bucket: !Sub '${EnvironmentName}.lambda.userverify'
+        S3Key: serverlessLambda.jar
+      Description: This Lambda function is triggered by SNS to send mail to Users.
+      Environment:
+        Variables:
+          domainName: !Ref HostedZoneDomainName
+      FunctionName: EmailVerificationLambda
+      Handler: 'handler.Mainhandler::handleRequest'
+      PackageType: Zip
+      Role: !Ref LambdaFunctionRole
+      Runtime: java11
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+    DependsOn: LambdaFunctionRole
+  LambdaS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${EnvironmentName}.lambda.userverify'
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: StorageRules
+            Prefix: standardIA
+            Status: Enabled
+            Transitions:
+              - TransitionInDays: 30
+                StorageClass: STANDARD_IA
+      VersioningConfiguration:
+        Status: Suspended
+  LambdaFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: This IAM Role is attached to the Lambda Function
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal: 
+            Service:
+              - 'lambda.amazonaws.com'
+          Action:
+          - 'sts:AssumeRole'
+      Policies:
+      - PolicyName: LambdaSESemailVerifyPolicy
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - 'ses:SendEmail'
+                - 'ses:SendRawEmail'
+              Resource: 
+              - !Sub 'arn:aws:ses:us-east-1:${AccountId}:identity/${HostedZoneDomainName}'
+  DynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: email
+          AttributeType: S
+        - AttributeName: token
+          AttributeType: N
+        - AttributeName: ttl
+          AttributeType: N
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: email
+          KeyType: HASH
+      TableName: userToken
+      Tags: 
+        - Key: Environment
+          Value: !Ref EnvironmentName
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
 Outputs:
   VPC:
     Description: A reference to the created VPC.
