@@ -291,12 +291,14 @@ Resources:
             export databasehost=${databasehostname}
             export databaseuser=${DbUser}
             export databasepassword=${DbPassword}
+            export snsTopicArn=${SNSTopic}
             EOF
             chmod 777 /etc/profile.d/spring_env.sh
             sudo systemctl restart application_boot.service
           - databasehostname: !GetAtt RDSInstance.Endpoint.Address
     DependsOn: 
     - RDSInstance
+    - SNSTopic
   WebAppAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
