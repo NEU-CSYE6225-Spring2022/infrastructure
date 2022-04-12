@@ -57,6 +57,9 @@ Parameters:
   AccountId:
     Description: Account Id for the specific Organization.
     Type: String
+  SEStopicArn:
+    Description: SES Topic mail domain
+    Type: String
 Resources:
   VPC:
     Type: AWS::EC2::VPC
@@ -611,7 +614,7 @@ Resources:
       DisplayName: snsTopic
       FifoTopic: false
       Subscription: 
-        - Endpoint: !Ref LambdaServerless
+        - Endpoint: !GetAtt LambdaServerless.Arn
           Protocol: lambda
       Tags: 
         - Key: Environment
@@ -623,45 +626,28 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       Code: 
-        S3Bucket: !Sub '${EnvironmentName}.lambda.userverify'
+        S3Bucket: !Sub '${EnvironmentName}.lambda.verifyuser'
         S3Key: serverlessLambda.jar
       Description: This Lambda function is triggered by SNS to send mail to Users.
       Environment:
         Variables:
-          domainName: !Ref HostedZoneDomainName
+          domainName: !Ref SEStopicArn
       FunctionName: EmailVerificationLambda
-      Handler: 'handler.Mainhandler::handleRequest'
+      Handler: 'handler.MainHandler::handleRequest'
       PackageType: Zip
-      Role: !Ref LambdaFunctionRole
+      Role: !GetAtt LambdaFunctionRole.Arn
       Runtime: java11
       Tags:
         - Key: Environment
           Value: !Ref EnvironmentName
     DependsOn: LambdaFunctionRole
-  LambdaS3Bucket:
-    Type: AWS::S3::Bucket
+  LambdaServerlessInvokePermission:
+    Type: 'AWS::Lambda::Permission'
     Properties:
-      BucketName: !Sub '${EnvironmentName}.lambda.userverify'
-      AccessControl: Private
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-      BucketEncryption:
-        ServerSideEncryptionConfiguration:
-          - ServerSideEncryptionByDefault:
-              SSEAlgorithm: AES256
-      LifecycleConfiguration:
-        Rules:
-          - Id: StorageRules
-            Prefix: standardIA
-            Status: Enabled
-            Transitions:
-              - TransitionInDays: 30
-                StorageClass: STANDARD_IA
-      VersioningConfiguration:
-        Status: Suspended
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref LambdaServerless
+      Principal: sns.amazonaws.com
+    DependsOn: LambdaServerless
   LambdaFunctionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -685,7 +671,9 @@ Resources:
                 - 'ses:SendEmail'
                 - 'ses:SendRawEmail'
               Resource: 
-              - !Sub 'arn:aws:ses:us-east-1:${AccountId}:identity/${HostedZoneDomainName}'
+              - !Sub 'arn:aws:ses:us-east-1:${AccountId}:identity/${SEStopicArn}'
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
   DynamoDBTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -694,12 +682,12 @@ Resources:
           AttributeType: S
         - AttributeName: token
           AttributeType: N
-        - AttributeName: ttl
-          AttributeType: N
       BillingMode: PAY_PER_REQUEST
       KeySchema:
         - AttributeName: email
           KeyType: HASH
+        - AttributeName: token
+          KeyType: RANGE
       TableName: userToken
       Tags: 
         - Key: Environment

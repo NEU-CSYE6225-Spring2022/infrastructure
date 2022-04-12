@@ -17,5 +17,23 @@ Resources:
         - Key: Environment
           Value: !Ref EnvironmentName
   
+  LambdaCodeDeployApplication:
+    Type: AWS::CodeDeploy::Application
+    Properties: 
+      ApplicationName: lambdaServerless
+      ComputePlatform: Lambda
+      Tags: 
+        - Key: Environment
+          Value: !Ref EnvironmentName
+  LambdaCodeDeploymentGroup:
+    Type: "AWS::CodeDeploy::DeploymentGroup"
+    Properties:
+      ApplicationName: !Ref LambdaCodeDeployApplication
+      DeploymentConfigName: CodeDeployDefault.LambdaAllAtOnce	
+      DeploymentGroupName: lambdaServerDeploymentGroup
+      ServiceRoleArn: 
+    DependsOn:
+    - LambdaCodeDeployApplication
+    - 
 
 Outputs:
