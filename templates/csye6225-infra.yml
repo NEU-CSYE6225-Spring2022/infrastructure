@@ -57,6 +57,9 @@ Parameters:
   AccountId:
     Description: Account Id for the specific Organization.
     Type: String
+  SEStopicArn:
+    Description: SES Topic mail domain
+    Type: String
 Resources:
   VPC:
     Type: AWS::EC2::VPC
@@ -291,12 +294,14 @@ Resources:
             export databasehost=${databasehostname}
             export databaseuser=${DbUser}
             export databasepassword=${DbPassword}
+            export snsTopicArn=${SNSTopic}
             EOF
             chmod 777 /etc/profile.d/spring_env.sh
             sudo systemctl restart application_boot.service
           - databasehostname: !GetAtt RDSInstance.Endpoint.Address
     DependsOn: 
     - RDSInstance
+    - SNSTopic
   WebAppAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
@@ -464,9 +469,19 @@ Resources:
               Resource: 
               - !Sub 'arn:aws:s3:::${CodeDeployBucketName}/*'
               - !Sub 'arn:aws:s3:::${CodeDeployBucketName}'
+      - PolicyName: SNSTopicPublish
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - 'sns:Publish'
+              Resource:
+              - !Ref SNSTopic
       ManagedPolicyArns:
       - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
       - arn:aws:iam::aws:policy/CloudWatchAgentAdminPolicy
+      - arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
       Tags: 
       - Key: Name
         Value: 'Ec2IamS3Role'
@@ -533,6 +548,23 @@ Resources:
       LogStreamName: webapp
     DependsOn:
     - WebAppCloudWatchLogGroup
+  GithubActionsLambdaS3Copy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: 'Managed policy for Github CICD user to push lambda code to S3'
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - 's3:PutObject'
+              - 's3:ListBucket'
+            Resource:
+              - !Sub 'arn:aws:s3:::${EnvironmentName}.lambda.verifyuser'
+              - !Sub 'arn:aws:s3:::${EnvironmentName}.lambda.verifyuser/*'
+      ManagedPolicyName: githubActionsLambdaS3Upload
+      Users:
+        - githubActionsCiCd
   GithubActionsS3Copy:
     Type: AWS::IAM::ManagedPolicy
     Properties: 
@@ -576,6 +608,93 @@ Resources:
       ManagedPolicyName: githubActionsCodeDeployAPI
       Users: 
         - githubActionsCiCd
+  SNSTopic:
+    Type: AWS::SNS::Topic
+    Properties: 
+      DisplayName: snsTopic
+      FifoTopic: false
+      Subscription: 
+        - Endpoint: !GetAtt LambdaServerless.Arn
+          Protocol: lambda
+      Tags: 
+        - Key: Environment
+          Value: !Ref EnvironmentName
+      TopicName: snsTopic
+    DependsOn: 
+    - LambdaServerless
+  LambdaServerless:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code: 
+        S3Bucket: !Sub '${EnvironmentName}.lambda.verifyuser'
+        S3Key: serverlessLambda.jar
+      Description: This Lambda function is triggered by SNS to send mail to Users.
+      Environment:
+        Variables:
+          domainName: !Ref SEStopicArn
+      FunctionName: EmailVerificationLambda
+      Handler: 'handler.MainHandler::handleRequest'
+      PackageType: Zip
+      Role: !GetAtt LambdaFunctionRole.Arn
+      Runtime: java11
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+    DependsOn: LambdaFunctionRole
+  LambdaServerlessInvokePermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref LambdaServerless
+      Principal: sns.amazonaws.com
+    DependsOn: LambdaServerless
+  LambdaFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: This IAM Role is attached to the Lambda Function
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal: 
+            Service:
+              - 'lambda.amazonaws.com'
+          Action:
+          - 'sts:AssumeRole'
+      Policies:
+      - PolicyName: LambdaSESemailVerifyPolicy
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - 'ses:SendEmail'
+                - 'ses:SendRawEmail'
+              Resource: 
+              - !Sub 'arn:aws:ses:us-east-1:${AccountId}:identity/${SEStopicArn}'
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+  DynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: email
+          AttributeType: S
+        - AttributeName: token
+          AttributeType: N
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: email
+          KeyType: HASH
+        - AttributeName: token
+          KeyType: RANGE
+      TableName: userToken
+      Tags: 
+        - Key: Environment
+          Value: !Ref EnvironmentName
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
 Outputs:
   VPC:
     Description: A reference to the created VPC.
