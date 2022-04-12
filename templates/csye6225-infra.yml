@@ -559,6 +559,7 @@ Resources:
             Action:
               - 's3:PutObject'
               - 's3:ListBucket'
+              - 's3:GetObject'
             Resource:
               - !Sub 'arn:aws:s3:::${EnvironmentName}.lambda.verifyuser'
               - !Sub 'arn:aws:s3:::${EnvironmentName}.lambda.verifyuser/*'
@@ -651,9 +652,11 @@ Resources:
           domainName: !Ref SEStopicArn
       FunctionName: EmailVerificationLambda
       Handler: 'handler.MainHandler::handleRequest'
+      MemorySize: 256
       PackageType: Zip
       Role: !GetAtt LambdaFunctionRole.Arn
       Runtime: java11
+      Timeout: 240
       Tags:
         - Key: Environment
           Value: !Ref EnvironmentName
