@@ -664,7 +664,7 @@ Resources:
       Action: 'lambda:InvokeFunction'
       FunctionName: !Ref LambdaServerless
       Principal: sns.amazonaws.com
-      SourceArn: !GetAtt SNSTopic.Arn
+      SourceArn: !Ref SNSTopic
     DependsOn: 
     - LambdaServerless
     - SNSTopic
