@@ -559,10 +559,28 @@ Resources:
             Action:
               - 's3:PutObject'
               - 's3:ListBucket'
+              - 's3:GetObject'
             Resource:
               - !Sub 'arn:aws:s3:::${EnvironmentName}.lambda.verifyuser'
               - !Sub 'arn:aws:s3:::${EnvironmentName}.lambda.verifyuser/*'
       ManagedPolicyName: githubActionsLambdaS3Upload
+      Users:
+        - githubActionsCiCd
+  GithubActionsLambdaUpdate:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: 'Managed policy for Github CICD user to update latest S3 code for Lambda'
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'lambda:UpdateFunctionCode'
+              - 'lambda:GetFunction'
+              - 'lambda:PublishVersion'
+            Resource:
+              - !Sub 'arn:aws:lambda:us-east-1:${AccountId}:function:EmailVerificationLambda'
+      ManagedPolicyName: githubActionsLambdaUpdate
       Users:
         - githubActionsCiCd
   GithubActionsS3Copy:
@@ -634,9 +652,11 @@ Resources:
           domainName: !Ref SEStopicArn
       FunctionName: EmailVerificationLambda
       Handler: 'handler.MainHandler::handleRequest'
+      MemorySize: 256
       PackageType: Zip
       Role: !GetAtt LambdaFunctionRole.Arn
       Runtime: java11
+      Timeout: 240
       Tags:
         - Key: Environment
           Value: !Ref EnvironmentName
@@ -647,7 +667,10 @@ Resources:
       Action: 'lambda:InvokeFunction'
       FunctionName: !Ref LambdaServerless
       Principal: sns.amazonaws.com
-    DependsOn: LambdaServerless
+      SourceArn: !Ref SNSTopic
+    DependsOn: 
+    - LambdaServerless
+    - SNSTopic
   LambdaFunctionRole:
     Type: AWS::IAM::Role
     Properties:
