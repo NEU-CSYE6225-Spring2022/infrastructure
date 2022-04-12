@@ -478,10 +478,20 @@ Resources:
                 - 'sns:Publish'
               Resource:
               - !Ref SNSTopic
+      - PolicyName: Ec2DynamodbTokenPolicy
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - 'dynamodb:PutItem'
+                - 'dynamodb:DescribeTable'
+                - 'dynamodb:GetItem'
+              Resource: 
+              - !Sub 'arn:aws:dynamodb:us-east-1:${AccountId}:table/userToken'
       ManagedPolicyArns:
       - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
       - arn:aws:iam::aws:policy/CloudWatchAgentAdminPolicy
-      - arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
       Tags: 
       - Key: Name
         Value: 'Ec2IamS3Role'
@@ -695,6 +705,17 @@ Resources:
                 - 'ses:SendRawEmail'
               Resource: 
               - !Sub 'arn:aws:ses:us-east-1:${AccountId}:identity/${SEStopicArn}'
+      - PolicyName: LambdaSESemailSentDynamodbPolicy
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - 'dynamodb:PutItem'
+                - 'dynamodb:DescribeTable'
+                - 'dynamodb:GetItem'
+              Resource: 
+              - !Sub 'arn:aws:dynamodb:us-east-1:${AccountId}:table/emailSent'
       ManagedPolicyArns:
       - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
   DynamoDBTable:
@@ -718,6 +739,20 @@ Resources:
       TimeToLiveSpecification:
         AttributeName: ttl
         Enabled: true
+  DynamoDBEmailTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: email
+          AttributeType: S
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: email
+          KeyType: HASH
+      TableName: emailSent
+      Tags: 
+        - Key: Environment
+          Value: !Ref EnvironmentName
 Outputs:
   VPC:
     Description: A reference to the created VPC.
