@@ -565,6 +565,23 @@ Resources:
       ManagedPolicyName: githubActionsLambdaS3Upload
       Users:
         - githubActionsCiCd
+  GithubActionsLambdaUpdate:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: 'Managed policy for Github CICD user to update latest S3 code for Lambda'
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'lambda:UpdateFunctionCode'
+              - 'lambda:GetFunction'
+              - 'lambda:PublishVersion'
+            Resource:
+              - !Sub 'arn:aws:lambda:us-east-1:${AccountId}:function:EmailVerificationLambda'
+      ManagedPolicyName: githubActionsLambdaUpdate
+      Users:
+        - githubActionsCiCd
   GithubActionsS3Copy:
     Type: AWS::IAM::ManagedPolicy
     Properties: 
@@ -647,7 +664,10 @@ Resources:
       Action: 'lambda:InvokeFunction'
       FunctionName: !Ref LambdaServerless
       Principal: sns.amazonaws.com
-    DependsOn: LambdaServerless
+      SourceArn: !GetAtt SNSTopic.Arn
+    DependsOn: 
+    - LambdaServerless
+    - SNSTopic
   LambdaFunctionRole:
     Type: AWS::IAM::Role
     Properties:
