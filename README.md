@@ -12,3 +12,5 @@ Run the following commands to setup the Aws Cloudformation stack in Dev and Demo
 ## Prerequisites
 Make sure you have dev and demo profile setup for Aws Cli in terminal. 
 Also make sure to have the proper permissions for running the scripts.
+Also should upload SSL certificate to ACM. Please use below command to Upload certificate
+$ aws acm import-certificate --certificate fileb://sslCertificate/prod_manojreddya_me/prod_manojreddya_me.crt --private-key fileb://sslCertificate/private.key --certificate-chain fileb://sslCertificate/prod_manojreddya_me/prod_manojreddya_me.ca-bundle  --profile demo --cli-binary-format raw-in-base64-out

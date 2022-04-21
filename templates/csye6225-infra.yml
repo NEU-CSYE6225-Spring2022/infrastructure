@@ -261,8 +261,11 @@ Resources:
         - Type: forward
           TargetGroupArn: !Ref PublicLoadBalancerTargetGroup
       LoadBalancerArn: !Ref PublicLoadBalancer
-      Port: 80
-      Protocol: HTTP
+      Port: 443
+      Protocol: HTTPS
+      SslPolicy: "ELBSecurityPolicy-FS-1-2-Res-2019-08"
+      Certificates:
+      - CertificateArn: arn:aws:acm:us-east-1:757570737110:certificate/de535718-a28f-4564-9da0-f87f444ebb53
   AutoScalingGroupTemplate:
     Type: AWS::EC2::LaunchTemplate
     Properties:
@@ -271,6 +274,8 @@ Resources:
         BlockDeviceMappings:
         - DeviceName: /dev/xvda
           Ebs:
+            Encrypted: true
+            KmsKeyId: !GetAtt EBSkey.Arn
             VolumeSize: 20
             VolumeType: "gp3"
             DeleteOnTermination: true
@@ -302,6 +307,7 @@ Resources:
     DependsOn: 
     - RDSInstance
     - SNSTopic
+    - EBSkey
   WebAppAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
@@ -404,12 +410,14 @@ Resources:
       Family: mysql8.0
       Parameters:
         sql_mode: IGNORE_SPACE
+        performance_schema: 1
   RDSInstance:
     Type: 'AWS::RDS::DBInstance'
     Properties:
+      CACertificateIdentifier: 'rds-ca-2019'
       DBInstanceIdentifier: csye6225
       DBName: csye6225
-      DBInstanceClass: db.t2.micro
+      DBInstanceClass: db.t3.micro
       DeleteAutomatedBackups: true
       Engine: MySQL
       EngineVersion: 8.0.16
@@ -422,10 +430,13 @@ Resources:
       DBSubnetGroupName: !Ref DBSubnetGroup
       MultiAZ: false
       PubliclyAccessible: false
+      KmsKeyId: !GetAtt RDSkey.Arn
+      StorageEncrypted: true
     DependsOn: 
     - PrivateSubnet1
     - InternetGatewayAttachment
     - PrivateSubnet2
+    - RDSkey
   DBSubnetGroup:
     Type: 'AWS::RDS::DBSubnetGroup'
     Properties:
@@ -750,6 +761,81 @@ Resources:
         - AttributeName: email
           KeyType: HASH
       TableName: emailSent
+      Tags: 
+        - Key: Environment
+          Value: !Ref EnvironmentName
+  EBSkey:
+    Type: AWS::KMS::Key
+    Properties: 
+      Description: Key used for encrypting the EBS volumes
+      Enabled: true
+      EnableKeyRotation: false
+      KeyPolicy:
+        Version: '2012-10-17'
+        Id: rds-key
+        Statement:
+          - Sid: Enable manojcli User Permissions
+            Effect: Allow
+            Principal:
+              AWS: 
+              - !Sub 'arn:aws:iam::${AccountId}:user/manojAdminDemoCli'
+              - !Sub 'arn:aws:iam::${AccountId}:root'
+            Action: 
+            - '*'
+            Resource: '*'
+          - Sid: Enable service to perform All actions
+            Effect: Allow
+            Principal:
+              AWS: 
+              - !Sub arn:aws:iam::${AccountId}:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling
+            Action: 
+            - 'kms:Encrypt'
+            - 'kms:Decrypt'
+            - 'kms:ReEncrypt*'
+            - 'kms:GenerateDataKey*'
+            - 'kms:DescribeKey'
+            Resource: '*'
+          - Sid: Enable persistance volumes to perform All actions
+            Effect: Allow
+            Principal:
+              AWS: 
+              - !Sub arn:aws:iam::${AccountId}:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling
+            Action: 
+            - 'kms:CreateGrant'
+            Resource: '*'
+      KeySpec: SYMMETRIC_DEFAULT
+      KeyUsage: ENCRYPT_DECRYPT
+      MultiRegion: false
+      Tags: 
+        - Key: Environment
+          Value: !Ref EnvironmentName
+  RDSkey:
+    Type: AWS::KMS::Key
+    Properties: 
+      Description: Key used for encrypting the RDS database
+      Enabled: true
+      EnableKeyRotation: false
+      KeyPolicy:
+        Version: 2012-10-17
+        Id: rds-key
+        Statement:
+          - Sid: Enable manojcli User Permissions
+            Effect: Allow
+            Principal:
+              AWS: 'arn:aws:iam::757570737110:user/manojAdminDemoCli'
+            Action: 'kms:*'
+            Resource: '*'
+          - Sid: Enable root to perform All actions
+            Effect: Allow
+            Principal:
+              AWS: 
+              - !Sub 'arn:aws:iam::${AccountId}:root'
+            Action: 
+              - 'kms:*'
+            Resource: '*'
+      KeySpec: SYMMETRIC_DEFAULT
+      KeyUsage: ENCRYPT_DECRYPT
+      MultiRegion: false
       Tags: 
         - Key: Environment
           Value: !Ref EnvironmentName

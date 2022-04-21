@@ -40,3 +40,36 @@ Outputs:
                 StorageClass: STANDARD_IA
       VersioningConfiguration:
         Status: Suspended
+  LoadBalancerHttpsCertificate:
+    Type: AWS::ElasticLoadBalancingV2::ListenerCertificate
+    Properties: 
+      Certificates: 
+        - arn:aws:iam::757570737110:server-certificate/sslProd
+      ListenerArn: !GetAtt PublicLoadBalancerListener.Arn
+    DependsOn: PublicLoadBalancerListener
+
+          - Sid: Enabling EC2 Autoscaling 
+            Effect: Allow
+            Principal: 
+              AWS: 'arn:aws:iam::${AccountId}:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling'
+            Action: 'kms:*'
+            Resource: '*'
+
+
+      - PolicyName: KmsKeyEBS
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - 'kms:DescribeKey'
+                - 'kms:GenerateDataKey*'
+                - 'kms:Decrypt'
+                - 'kms:Encrypt'
+                - 'kms:ReEncrypt*'
+              Resource: 
+              - !GetAtt EBSkey.Arn
+
+            Condition: 
+              Bool: 
+                kms:GrantIsForAWSResource: true
