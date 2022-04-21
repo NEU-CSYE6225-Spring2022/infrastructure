@@ -265,7 +265,7 @@ Resources:
       Protocol: HTTPS
       SslPolicy: "ELBSecurityPolicy-FS-1-2-Res-2019-08"
       Certificates:
-      - arn:aws:iam::757570737110:server-certificate/sslProd
+      - CertificateArn: arn:aws:acm:us-east-1:757570737110:certificate/de535718-a28f-4564-9da0-f87f444ebb53
   AutoScalingGroupTemplate:
     Type: AWS::EC2::LaunchTemplate
     Properties:
@@ -410,6 +410,7 @@ Resources:
       Family: mysql8.0
       Parameters:
         sql_mode: IGNORE_SPACE
+        performance_schema: 1
   RDSInstance:
     Type: 'AWS::RDS::DBInstance'
     Properties:
@@ -778,24 +779,29 @@ Resources:
             Principal:
               AWS: 
               - !Sub 'arn:aws:iam::${AccountId}:user/manojAdminDemoCli'
-              - !GetAtt EC2CSYE6225IamRole.Arn
+              - !Sub 'arn:aws:iam::${AccountId}:root'
+            Action: 
+            - '*'
+            Resource: '*'
+          - Sid: Enable service to perform All actions
+            Effect: Allow
+            Principal:
+              AWS: 
+              - !Sub arn:aws:iam::${AccountId}:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling
             Action: 
             - 'kms:Encrypt'
             - 'kms:Decrypt'
             - 'kms:ReEncrypt*'
             - 'kms:GenerateDataKey*'
             - 'kms:DescribeKey'
-            - 'CreateGrant'
-            - 'kms:ListGrants'
-            - 'kms:RevokeGrant'
             Resource: '*'
-          - Sid: Enable root to perform All actions
+          - Sid: Enable persistance volumes to perform All actions
             Effect: Allow
             Principal:
               AWS: 
-              - !Sub 'arn:aws:iam::${AccountId}:root'
+              - !Sub arn:aws:iam::${AccountId}:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling
             Action: 
-              - 'kms:*'
+            - 'kms:CreateGrant'
             Resource: '*'
       KeySpec: SYMMETRIC_DEFAULT
       KeyUsage: ENCRYPT_DECRYPT
@@ -803,7 +809,6 @@ Resources:
       Tags: 
         - Key: Environment
           Value: !Ref EnvironmentName
-    DependsOn: EC2CSYE6225IamRole
   RDSkey:
     Type: AWS::KMS::Key
     Properties: 

@@ -69,3 +69,7 @@ Outputs:
                 - 'kms:ReEncrypt*'
               Resource: 
               - !GetAtt EBSkey.Arn
+
+            Condition: 
+              Bool: 
+                kms:GrantIsForAWSResource: true
